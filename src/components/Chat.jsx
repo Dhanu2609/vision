@@ -23,33 +23,49 @@ const Chat = () => {
   // 🔥 Load all messages from Firestore (single collection)
   useEffect(() => {
     const q = query(collection(db, "messages"), orderBy("createdAt"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const newMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+  
+      setMessages(newMessages);
+  
+      // Mark messages as seen when a user views them
+      newMessages.forEach(async (msg) => {
+        if (!msg.seenBy?.includes(user.uid)) {
+          await updateDoc(doc(db, "messages", msg.id), {
+            seenBy: [...(msg.seenBy || []), user.uid],
+          });
+        }
+      });
     });
-
+  
     return () => unsubscribe();
-  }, []);
+  }, [user.uid]);
+  
 
   // ✅ Send Message (Text or Emoji)
   const sendMessage = async (e) => {
-  e.preventDefault();
-  if (!message.trim()) return;
+    e.preventDefault();
+    if (!message.trim()) return;
+    
+    try {
+      await addDoc(collection(db, "messages"), {
+        text: message,
+        name: user.displayName || "Anonymous",
+        uid: user.uid,
+        photoURL: user.photoURL || "", // Default to an empty string if undefined
+        createdAt: serverTimestamp(),
+        seenBy: [],
+      });
+      setMessage(""); // Clear input after sending
+    } catch (error) {
+      console.error("Error sending message:", error);
+      alert("Failed to send message. Please check the console for details.");
+    }
+  };
   
-  try {
-    await addDoc(collection(db, "messages"), {
-      text: message,
-      name: user.displayName || "Anonymous",
-      uid: user.uid,
-      photoURL: user.photoURL || "", // Default to an empty string if undefined
-      createdAt: serverTimestamp(),
-    });
-    setMessage(""); // Clear input after sending
-  } catch (error) {
-    console.error("Error sending message:", error);
-    alert("Failed to send message. Please check the console for details.");
-  }
-};
-
 
   // ✅ Edit Message
   const editMessage = async (id, newText) => {
@@ -141,10 +157,25 @@ const Chat = () => {
                     autoFocus
                   />
                 ) : (
-                  <p className="message-text" onClick={() => { setEditId(msg.id); setEditText(msg.text); }}>
-                    {msg.text}
-                  </p>
+                  <div>
+                    <p className="message-text" onClick={() => { setEditId(msg.id); setEditText(msg.text); }}>
+                      {msg.text}
+                    </p>
+                    <div>
+                      <p className="timestamp">
+                        {msg.createdAt?.seconds
+                          ? new Date(msg.createdAt.seconds * 1000).toLocaleString()
+                          : "Sending..."}
+                      </p>
+                      <small className="seen-status">
+                        {msg.seenBy?.length > 1
+                          ? `Seen by ${msg.seenBy.length - 1} others`
+                          : "Not seen yet"}
+                      </small>
+                    </div>
+                  </div>
                 )
+                
               ) : (
                 <audio controls>
                   <source src={msg.audioUrl} type="audio/webm" />
