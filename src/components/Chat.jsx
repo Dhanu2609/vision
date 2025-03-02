@@ -205,9 +205,12 @@ const Chat = () => {
     : "Sending..."}
 </p>
 
-                      <small className="seen-status">
-                        {msg.seenBy?.length > 1 ? `Seen by ${msg.seenBy.length - 1} others` : "Not seen yet"}
-                      </small>
+<small className="seen-status">
+  {msg.seenBy?.length > 1 
+    ? `Seen by ${msg.seenBy.length - 1} others at ${new Date(msg.seenTime).toLocaleTimeString()}`
+    : "Not seen yet"}
+</small>
+
                     </div>
                   </div>
                 )
