@@ -32,17 +32,24 @@ const Chat = () => {
 
   // ✅ Send Message (Text or Emoji)
   const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!message.trim()) return;
+  e.preventDefault();
+  if (!message.trim()) return;
+  
+  try {
     await addDoc(collection(db, "messages"), {
       text: message,
-      name: user.displayName,
+      name: user.displayName || "Anonymous",
       uid: user.uid,
-      photoURL: user.photoURL,
+      photoURL: user.photoURL || "", // Default to an empty string if undefined
       createdAt: serverTimestamp(),
     });
-    setMessage("");
-  };
+    setMessage(""); // Clear input after sending
+  } catch (error) {
+    console.error("Error sending message:", error);
+    alert("Failed to send message. Please check the console for details.");
+  }
+};
+
 
   // ✅ Edit Message
   const editMessage = async (id, newText) => {
