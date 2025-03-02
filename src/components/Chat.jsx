@@ -2,6 +2,7 @@ import { useAuth } from "../context/AuthContext";
 import { useState, useEffect, useRef } from "react";
 import { db } from "../firebase";
 import EmojiPicker from "emoji-picker-react";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { 
   collection, query, orderBy, onSnapshot, 
   doc, updateDoc, deleteDoc, addDoc, serverTimestamp 
@@ -19,8 +20,9 @@ const Chat = () => {
   const [showDeletePopup, setShowDeletePopup] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunks = useRef([]);
+  const chatEndRef = useRef(null); // Ref for scrolling
 
-  // 🔥 Load all messages from Firestore (single collection)
+  // 🔥 Load all messages from Firestore
   useEffect(() => {
     const q = query(collection(db, "messages"), orderBy("createdAt"));
     const unsubscribe = onSnapshot(q, async (snapshot) => {
@@ -28,10 +30,10 @@ const Chat = () => {
         id: doc.id,
         ...doc.data(),
       }));
-  
+
       setMessages(newMessages);
-  
-      // Mark messages as seen when a user views them
+
+      // Mark messages as seen
       newMessages.forEach(async (msg) => {
         if (!msg.seenBy?.includes(user.uid)) {
           await updateDoc(doc(db, "messages", msg.id), {
@@ -40,12 +42,18 @@ const Chat = () => {
         }
       });
     });
-  
+
     return () => unsubscribe();
   }, [user.uid]);
-  
 
-  // ✅ Send Message (Text or Emoji)
+  // 🔽 Scroll to the latest message
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  // ✅ Send Message
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!message.trim()) return;
@@ -55,17 +63,16 @@ const Chat = () => {
         text: message,
         name: user.displayName || "Anonymous",
         uid: user.uid,
-        photoURL: user.photoURL || "", // Default to an empty string if undefined
+        photoURL: user.photoURL || "",
         createdAt: serverTimestamp(),
         seenBy: [],
       });
-      setMessage(""); // Clear input after sending
+      setMessage(""); 
     } catch (error) {
       console.error("Error sending message:", error);
-      alert("Failed to send message. Please check the console for details.");
+      alert("Failed to send message.");
     }
   };
-  
 
   // ✅ Edit Message
   const editMessage = async (id, newText) => {
@@ -74,12 +81,8 @@ const Chat = () => {
     setEditId(null);
   };
 
-  // ✅ Delete Message Confirmation
-  const confirmDelete = (id) => {
-    setShowDeletePopup(id);
-  };
-
-  // ✅ Delete Message from Firestore
+  // ✅ Delete Message
+  const confirmDelete = (id) => setShowDeletePopup(id);
   const deleteMessage = async () => {
     await deleteDoc(doc(db, "messages", showDeletePopup));
     setShowDeletePopup(null);
@@ -106,7 +109,7 @@ const Chat = () => {
         const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
         const audioUrl = URL.createObjectURL(audioBlob);
         await addDoc(collection(db, "messages"), {
-          text: null, // No text when sending a voice message
+          text: null,
           audioUrl,
           name: user.displayName,
           uid: user.uid,
@@ -124,7 +127,33 @@ const Chat = () => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop();
     }
+  
+    mediaRecorderRef.current.onstop = async () => {
+      const audioBlob = new Blob(audioChunks.current, { type: "audio/webm" });
+  
+      // Upload audio file to Firebase Storage
+      const storage = getStorage();
+      const audioRef = ref(storage, `audioMessages/${Date.now()}.webm`);
+      
+      try {
+        await uploadBytes(audioRef, audioBlob);
+        const audioUrl = await getDownloadURL(audioRef);
+  
+        // Save audio URL to Firestore
+        await addDoc(collection(db, "messages"), {
+          text: null,
+          audioUrl,
+          name: user.displayName,
+          uid: user.uid,
+          createdAt: serverTimestamp(),
+        });
+      } catch (error) {
+        console.error("Error uploading audio:", error);
+        alert("Failed to upload audio message.");
+      }
+    };
   };
+  
 
   return (
     <div className="chat-container">
@@ -164,18 +193,15 @@ const Chat = () => {
                     <div>
                       <p className="timestamp">
                         {msg.createdAt?.seconds
-                          ? new Date(msg.createdAt.seconds * 1000).toLocaleString()
+                          ? new Date(msg.createdAt.seconds * 1000).toLocaleTimeString()
                           : "Sending..."}
                       </p>
                       <small className="seen-status">
-                        {msg.seenBy?.length > 1
-                          ? `Seen by ${msg.seenBy.length - 1} others`
-                          : "Not seen yet"}
+                        {msg.seenBy?.length > 1 ? `Seen by ${msg.seenBy.length - 1} others` : "Not seen yet"}
                       </small>
                     </div>
                   </div>
                 )
-                
               ) : (
                 <audio controls>
                   <source src={msg.audioUrl} type="audio/webm" />
@@ -192,13 +218,13 @@ const Chat = () => {
             </div>
           </div>
         ))}
+        <div ref={chatEndRef}></div> {/* Auto-scroll anchor */}
       </div>
 
       {/* Chat Input */}
       <div className="chat-input">
         <button onClick={() => setShowEmojiPicker(!showEmojiPicker)}>😀</button>
         {showEmojiPicker && <EmojiPicker onEmojiClick={handleEmojiClick} />}
-
         <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type a message..." />
         
         {isRecording ? (
