@@ -191,16 +191,20 @@ const Chat = () => {
                       {msg.text}
                     </p>
                     <div>
-                      <p className="timestamp">
-                      {msg.createdAt?.seconds
+                    <p className="timestamp">
+  {msg?.createdAt
     ? new Date(msg.createdAt.seconds * 1000).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short", // "long" for full month name
+        day: "numeric",
         hour: "numeric",
         minute: "numeric",
         second: "numeric",
         hour12: true,
       })
     : "Sending..."}
-                      </p>
+</p>
+
                       <small className="seen-status">
                         {msg.seenBy?.length > 1 ? `Seen by ${msg.seenBy.length - 1} others` : "Not seen yet"}
                       </small>
