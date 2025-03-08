@@ -4,7 +4,7 @@
     flex-direction: column;
     height: 100vh; /* Full screen height */
     width: 100vw; /* Full screen width */
-    background: linear-gradient(to bottom, #ece5dd, #d1e7dd);
+    background: linear-gradient(to bottom, #1e1d1b, #4b5f56);
     overflow: hidden;
   }
   
@@ -144,7 +144,7 @@
   .chat-input input {
     flex-grow: 1;
     padding: 12px;
-    border: 1px solid #ddd;
+    border: 1px solid #ecd4d4;
     border-radius: 25px;
     margin: 0 8px;
     font-size: 14px;
